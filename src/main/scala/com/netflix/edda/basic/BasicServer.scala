@@ -57,12 +57,16 @@ class BasicServer extends HttpServlet {
     val bm = new BasicBeanMapper with AwsBeanMapper
 
     val awsClientFactory = (account: String) => {
-      Utils.getProperty("edda", "aws.accessKey", account, "").get match {
+      val client = Utils.getProperty("edda", "aws.accessKey", account, "").get match {
         case v if v.isEmpty => new AwsClient(Utils.getProperty("edda", "region", account, "").get)
         case accessKey => new AwsClient(
           accessKey,
           Utils.getProperty("edda", "aws.secretKey", account, "").get,
           Utils.getProperty("edda", "region", account, "").get)
+      }
+      Utils.getProperty("edda", "aws.assumeRoleArn", account, "").get match {
+        case v if v.isEmpty => client
+        case arn => client.assumeRole(arn)
       }
     }
 

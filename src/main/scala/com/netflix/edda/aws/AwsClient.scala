@@ -28,13 +28,16 @@ import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.sqs.AmazonSQSClient
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
 import com.amazonaws.services.route53.AmazonRoute53Client
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
+import com.amazonaws.services.securitytoken.model.AssumeRoleRequest
+import com.amazonaws.services.securitytoken.model.AssumeRoleResult
 
 /** provides access to AWS service client objects
   *
   * @param credentials provider used to connect to AWS services
   * @param region used to select endpoint for AWS services
   */
-class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
+class AwsClient(var provider: AWSCredentialsProvider, val region: String) {
 
   /** uses [[com.amazonaws.auth.AWSCredentials]] to create AWSCredentialsProvider
     *
@@ -59,6 +62,21 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
     */
   def this(accessKey: String, secretKey: String, region: String) =
     this(new BasicAWSCredentials(accessKey, secretKey), region)
+
+  def assumeRole(arn: String): AwsClient = {
+    val client = securityToken
+    provider = new AWSCredentialsProvider() {
+      val req = (new AssumeRoleRequest).withRoleArn(arn)
+      def update = {
+        var result = client.assumeRole(req) 
+        new BasicAWSCredentials(result.getCredentials.getAccessKeyId, result.getCredentials.getSecretAccessKey)
+      }
+      var cred = update
+      def getCredentials = cred
+      def refresh = cred = update
+    }
+    this
+  }
 
   /** get [[com.amazonaws.services.ec2.AmazonEC2Client]] object */
   def ec2 = {
@@ -121,4 +139,11 @@ class AwsClient(val provider: AWSCredentialsProvider, val region: String) {
       client.setEndpoint("route53.amazonaws.com")
       client
    }
+
+  def securityToken = {
+    val client = new AWSSecurityTokenServiceClient(provider);
+    client.setEndpoint("sts.amazonaws.com");
+    client
+  }
+
 }
